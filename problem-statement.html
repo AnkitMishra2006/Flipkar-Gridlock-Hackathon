@@ -1,0 +1,100 @@
+<div class="problem-description line-height-18 less-margin-2 darker content">
+                            <div id="fullscreen-problem-title" class="problem-title medium-margin weight-700 hidden">Traffic demand prediction</div>
+                            <p>Cities worldwide are increasingly turning to AI-powered solutions to tackle the issue of traffic congestion. This problem disrupts the smooth flow of transportation and poses a significant barrier to economic growth. To address this challenge effectively, the first step is to understand travel demand and patterns within urban areas comprehensively. By harnessing the power of AI, cities, and regions aim to gather critical insights into transportation dynamics. This will enable them to implement data-driven strategies and solutions to alleviate traffic congestion and promote more efficient mobility. Ultimately, this endeavor will foster economic development and prosperity.</p>
+<p><strong>Task</strong></p>
+<p>Design a system that helps us provide valuable insights into passenger travel patterns, booking behavior, and trip cancellations, which can be used&nbsp;for various analyses and predict demand in the travel industry.</p>
+<p><strong>Dataset description</strong></p>
+<p>The dataset folder contains the following files:&nbsp;</p>
+<ul>
+<li><strong>train.csv</strong>: 77299 x&nbsp; 11</li>
+<li><strong>test.csv</strong>: 41778 x 10</li>
+<li><strong>sample_submission.csv</strong>:&nbsp;5 x&nbsp;2</li>
+</ul>
+<p><strong>Variable description</strong></p>
+<p>The columns provided in the dataset are as follows:</p>
+<table border="1"><tbody>
+
+<tr>
+<td>
+<p><strong>Column name</strong></p>
+</td>
+<td>
+<p><strong>Description</strong></p>
+</td>
+</tr>
+<tr>
+<td>Index</td>
+<td>Represents the unique identification of datapoint</td>
+</tr>
+<tr>
+<td>geohash</td>
+<td>Represents geographic information regarding a place</td>
+</tr>
+<tr>
+<td>day</td>
+<td>Represents the day when the information is recorded</td>
+</tr>
+<tr>
+<td>timestamp</td>
+<td>&nbsp;Represents the timestamp of the record inserted in the system</td>
+</tr>
+<tr>
+<td>RoadType</td>
+<td>Represents the type of road in the nearby location</td>
+</tr>
+<tr>
+<td>NumberofLanes</td>
+<td>Represents the number of roads/lanes present in the location</td>
+</tr>
+<tr>
+<td>LargeVehicles</td>
+<td>Represents whether large vehicles are permitted on the specific roads/lanes</td>
+</tr>
+<tr>
+<td>Landmarks&nbsp;</td>
+<td>Represents whether there are any landmarks near the location</td>
+</tr>
+<tr>
+<td>Temperature</td>
+<td>Represents the temperature of the place</td>
+</tr>
+<tr>
+<td>Weather</td>
+<td>Represents the weather of the place&nbsp;</td>
+</tr>
+<tr>
+<td>demand</td>
+<td>Represents the demand of the traffic at the timestamp</td>
+</tr>
+
+</tbody></table>
+<p><strong>Evaluation metric</strong></p>
+<pre class="prettyprint prettyprint prettyprint"><code>score = max(0,100*(metrics.r2_score(actual,predicted)))</code></pre>
+<p><strong>Result submission guidelines</strong></p>
+<ul>
+<li>The index is "Index" and the target is the "demand" column.&nbsp;</li>
+<li>The submission file must be submitted in .csv format only.</li>
+<li>The size of this submission file must be&nbsp; 41778 x 2.</li>
+<li>Ensure that your submission file contains the following:
+<ul>
+<li>Correct index values as per the test file</li>
+<li>Correct names of&nbsp;columns as provided in the <em>sample_submission.csv</em> file</li>
+</ul>
+</li>
+</ul>
+<p><strong>Instructions</strong></p>
+<ol>
+<li>Click <em>Download dataset</em> to download the dataset.</li>
+<li>Solve the problem in your local environment.</li>
+<li>Save the predictions in a <em>.csv</em> file.</li>
+<li>Click <em>Upload File</em> (under the <em>Upload File</em> section) to upload your prediction file (<em>.csv</em>).</li>
+<li>Click <em>Upload File</em> (under the <em>Upload Source Code</em> section) to upload your <em>.ipynb</em> file along with any presentation file.</li>
+<li>Add any instructions or comments in the <em>Your Answer</em> section.</li>
+<li>Click <em>Submit</em>.</li>
+</ol>
+                            
+                                <div style="margin-top: 20px">
+                                    <a class="button btn-blue-outline call-ajax" href="https://he-s3-ap-south-1.s3.amazonaws.com/media/hackathon/gridlock-hackathon-20/traffic-demand-prediction-12-b86d1caf/e88186124ec611f1.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Credential=AKIA6I2ISGOYMPJGUFGY%2F20260602%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260602T122709Z&amp;X-Amz-Expires=3600&amp;X-Amz-SignedHeaders=host&amp;X-Amz-Signature=cd90639ab96341682ea5cc7bc13146efb86831ab3e013e0ce11d917f7be5a732" download="" ajax="/problems/machine-learning/c0163f2bb8f44a729d9e5f56232a3e14/log-dataset-download/">Download dataset</a>
+                                </div>
+                            
+                        </div>
