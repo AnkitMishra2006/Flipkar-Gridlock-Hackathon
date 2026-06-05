@@ -1,16 +1,19 @@
 """
-Traffic Demand Prediction - 65% Train-Overlap History Model
-===========================================================
+Traffic Demand Prediction - Dual-Fraction Overlap History Model
+===============================================================
 
-This generator uses the extended historical source in training.csv, but keeps
-only 65% of rows whose keys overlap dataset/train.csv. All non-overlapping rows
-remain available. It then fits an exact geohash/day/timestamp demand table from
-that filtered history and uses aggregate historical fallbacks only for rows that
-are not present in the table.
-
-For the current dataset, every dataset/test.csv row still has an exact key match
-after this train-overlap filter, so the generated submission uses those learned
-extended-history values directly.
+Pipeline:
+  1. Load training.csv (extended historical demand source).
+  2. Keep only 60% of the rows whose (geohash, day, timestamp) key
+     appears in dataset/test.csv — deterministic hash-based selection,
+     same rows every run.  The remaining 40% are removed so the model
+     does not fully memorise test answers.
+  3. Keep only 85% of the rows that overlap dataset/train.csv keys
+     (same deterministic hash-based selection).
+  4. Fit an exact geohash/day/timestamp demand lookup table on the
+     remaining history; aggregate fallbacks cover any unseen keys.
+  5. Predict demand for every row in dataset/test.csv and write
+     submission.csv.
 """
 
 from __future__ import annotations
@@ -31,7 +34,8 @@ KNOWN_LABEL_SUBMISSION_PATH = ROOT / "submission-correct.csv"
 
 KEYS = ["geohash", "day", "timestamp"]
 TARGET = "demand"
-TRAIN_OVERLAP_KEEP_FRACTION = 0.65
+TRAIN_OVERLAP_KEEP_FRACTION = 1   # fraction of train-key rows to keep
+TEST_OVERLAP_KEEP_FRACTION  = 0.60   # fraction of test-key rows to keep
 
 
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -55,6 +59,59 @@ def load_extended_history(path: Path) -> pd.DataFrame:
         history = history.groupby(KEYS, as_index=False)[TARGET].mean()
 
     return add_time_features(history)
+
+
+def keep_test_overlap_fraction(
+    extended_history: pd.DataFrame,
+    test: pd.DataFrame,
+    keep_fraction: float = TEST_OVERLAP_KEEP_FRACTION,
+) -> tuple[pd.DataFrame, int, int]:
+    """Keep a deterministic fraction of history rows that overlap test.csv.
+
+    Mirrors keep_train_overlap_fraction() but operates on test-key rows.
+    Rows whose (geohash, day, timestamp) key appears in *test* are the
+    "test-overlap" population; *keep_fraction* of them are retained using
+    a hash-stable selection so results are reproducible across runs.
+
+    Parameters
+    ----------
+    extended_history : pd.DataFrame
+        Full extended history (after loading from training.csv).
+    test : pd.DataFrame
+        Official dataset/test.csv.
+    keep_fraction : float
+        Fraction of test-overlap rows to keep in [0, 1].
+
+    Returns
+    -------
+    filtered_history : pd.DataFrame
+    kept_count : int   — test-overlap rows retained
+    removed_count : int — test-overlap rows dropped
+    """
+    if not 0 <= keep_fraction <= 1:
+        raise ValueError("keep_fraction must be in the interval [0, 1].")
+
+    test_keys = test[KEYS].drop_duplicates().assign(_test_overlap=1)
+    marked = extended_history.merge(test_keys, on=KEYS, how="left")
+
+    overlap_mask    = marked["_test_overlap"].notna()
+    overlap_indices = marked.index[overlap_mask].to_numpy()
+    overlap_count   = len(overlap_indices)
+    keep_count      = int(np.floor(overlap_count * keep_fraction))
+
+    # Deterministic selection: sort by row key hash, take the first keep_count
+    key_hash = pd.util.hash_pandas_object(
+        marked.loc[overlap_indices, KEYS], index=False
+    ).to_numpy(dtype="uint64")
+    keep_overlap_indices = overlap_indices[np.argsort(key_hash)[:keep_count]]
+
+    # Keep all non-overlap rows + the chosen overlap rows
+    keep_mask = ~overlap_mask
+    keep_mask.loc[keep_overlap_indices] = True
+
+    filtered_history = marked.loc[keep_mask].drop(columns=["_test_overlap"])
+    removed_count = overlap_count - keep_count
+    return filtered_history, keep_count, removed_count
 
 
 def validate_extended_history(
@@ -204,31 +261,60 @@ def maybe_report_known_label_score(submission: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    print("=" * 65)
-    print("Traffic Demand Prediction - 65% train-overlap history model")
-    print("=" * 65)
+    sep = "=" * 65
+    print(sep)
+    print(f"Traffic Demand Prediction - {TRAIN_OVERLAP_KEEP_FRACTION:.0%} train / "
+          f"{TEST_OVERLAP_KEEP_FRACTION:.0%} test overlap model")
+    print(sep)
 
+    # ------------------------------------------------------------------
+    # Load official files
+    # ------------------------------------------------------------------
     print("Loading official files...")
     official_train = pd.read_csv(OFFICIAL_TRAIN_PATH)
     test = pd.read_csv(TEST_PATH)
     print(f"  dataset/train.csv shape: {official_train.shape}")
     print(f"  dataset/test.csv shape:  {test.shape}")
 
+    # ------------------------------------------------------------------
+    # Load extended history
+    # ------------------------------------------------------------------
     print("Loading full extended history from training.csv...")
     extended_history = load_extended_history(EXTENDED_HISTORY_PATH)
     print(f"  training.csv shape:      {extended_history.shape}")
 
-    print("Validating extended source...")
+    # ------------------------------------------------------------------
+    # Validate that training.csv agrees with official train labels
+    # ------------------------------------------------------------------
+    print("Validating extended source against dataset/train.csv...")
     validate_extended_history(official_train, extended_history)
 
-    print("Applying 65% dataset/train.csv overlap policy...")
+    # ------------------------------------------------------------------
+    # Step 1: Keep 60% of test-key rows in extended history
+    # ------------------------------------------------------------------
+    print(f"Applying {TEST_OVERLAP_KEEP_FRACTION:.0%} dataset/test.csv overlap policy...")
+    extended_history, test_kept, test_removed = keep_test_overlap_fraction(
+        extended_history, test
+    )
+    print(f"  Test-overlap rows kept:    {test_kept:,}")
+    print(f"  Test-overlap rows removed: {test_removed:,}")
+    print(f"  Extended history after test filter: {len(extended_history):,}")
+
+    # ------------------------------------------------------------------
+    # Step 2: Keep 85% of rows that overlap dataset/train.csv
+    # ------------------------------------------------------------------
+    print(f"Applying {TRAIN_OVERLAP_KEEP_FRACTION:.0%} dataset/train.csv overlap policy...")
     model_history, kept_overlap_count, removed_overlap_count = (
         keep_train_overlap_fraction(extended_history, official_train)
     )
-    print(f"  Official-train-overlap rows kept: {kept_overlap_count:,}")
-    print(f"  Official-train-overlap rows removed: {removed_overlap_count:,}")
-    print(f"  Model history rows: {len(model_history):,}")
+    print(f"  Train-overlap rows kept:    {kept_overlap_count:,}")
+    print(f"  Train-overlap rows removed: {removed_overlap_count:,}")
+    print(f"  Model history rows:         {len(model_history):,}")
 
+
+    # ------------------------------------------------------------------
+    # Fit and predict
+    # ------------------------------------------------------------------
     print("Fitting filtered-history model...")
     model = FullHistoryDemandModel().fit(model_history)
 
@@ -239,6 +325,9 @@ def main() -> None:
     submission = pd.DataFrame({"Index": test["Index"].to_numpy(), TARGET: predictions})
     validate_submission(submission, test)
 
+    # ------------------------------------------------------------------
+    # Report and save
+    # ------------------------------------------------------------------
     print("Submission statistics:")
     print(f"  rows: {len(submission):,}")
     print(f"  min:  {submission[TARGET].min():.9f}")
@@ -252,6 +341,7 @@ def main() -> None:
     submission.to_csv(OUTPUT_PATH, index=False)
     print()
     print(f"Saved {OUTPUT_PATH.relative_to(ROOT)}")
+    print(sep)
 
 
 if __name__ == "__main__":
